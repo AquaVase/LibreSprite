@@ -2,7 +2,7 @@ name: Windows x86_64
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, installer ]
     tags:
       - '*'
   pull_request:
@@ -73,7 +73,6 @@ jobs:
           echo "$VER" | grep -Eq '^[0-9]+(\.[0-9]+)*' || { echo "::error::tag ${{ steps.check_tag.outputs.tag }} has no numeric version"; exit 1; }
           ISS_VER=$(printf '%s' "$VER" | tr -cd '0-9.')
           echo "$ISS_VER" | grep -Eq '^[0-9]+(\.[0-9]+){0,3}$' || { echo "::error::$VER does not yield a valid Inno AppVersion ($ISS_VER)"; exit 1; }
-          sed -i "s/^#define MyAppVersion.*/#define MyAppVersion \"$ISS_VER\"/" packaging/windows/WindowsInstaller.iss
         fi
     - shell: msys2 {0}
       run: |
@@ -97,19 +96,21 @@ jobs:
         path: |
           build/bin/*
     - name: Install Inno Setup
-      if: startsWith(github.ref, 'refs/tags/')
-      run: choco install innosetup --version=6.7.1 -y
+      run: choco install innosetup --version=6.7.3 -y
     - name: Build installer
-      if: startsWith(github.ref, 'refs/tags/')
       run: |
-        iscc packaging\windows\WindowsInstaller.iss
-        Rename-Item packaging\windows\LibreSpriteInstaller.exe "libresprite-${{ steps.check_tag.outputs.tag }}-windows-x86_64-installer.exe"
+        $version = '1.2'
+        $name = 'libresprite-windows-x86_64-installer'
+        if ('${{ steps.check_tag.outputs.has_tag }}' -eq 'true') {
+          $version = '${{ steps.check_tag.outputs.version }}' -replace '[^0-9.]', ''
+          $name = 'libresprite-${{ steps.check_tag.outputs.tag }}-windows-x86_64-installer'
+        }
+        ./packaging/windows/build-installer.ps1 -SourceDirectory build/bin -OutputDirectory packaging/windows -Version $version -OutputName $name
     - name: Upload installer
-      if: startsWith(github.ref, 'refs/tags/')
       uses: actions/upload-artifact@v7
       with:
-        name: libresprite-${{ steps.check_tag.outputs.tag }}-windows-x86_64-installer
-        path: packaging/windows/libresprite-${{ steps.check_tag.outputs.tag }}-windows-x86_64-installer.exe
+        name: ${{ steps.check_tag.outputs.has_tag == 'true' && format('libresprite-{0}-windows-x86_64-installer', steps.check_tag.outputs.tag) || 'libresprite-windows-x86_64-installer' }}
+        path: packaging/windows/*installer.exe
         if-no-files-found: error
     - name: Package release zip
       if: startsWith(github.ref, 'refs/tags/')
