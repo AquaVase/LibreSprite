@@ -98,6 +98,7 @@ jobs:
     - name: Install Inno Setup
       run: choco install innosetup --version=6.7.3 -y
     - name: Build installer
+      shell: pwsh
       run: |
         $version = '1.2'
         $name = 'libresprite-windows-x86_64-installer'
