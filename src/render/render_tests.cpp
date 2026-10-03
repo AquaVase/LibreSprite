@@ -213,6 +213,82 @@ TEST(Render, ZoomAndDstBounds)
     0, 0, 0, 0);
 }
 
+TEST(Render, DownscaleDitheredPaletteColors)
+{
+  Context ctx;
+  Document* doc = ctx.documents().add(8, 8, ColorMode::INDEXED);
+  Image* src = doc->sprite()->layer(0)->cel(0)->image();
+  Palette* pal = doc->sprite()->palette(0);
+  pal->setEntry(1, rgba(240, 0, 0, 255));
+  pal->setEntry(2, rgba(0, 0, 240, 255));
+  for (int y=0; y<8; ++y)
+    for (int x=0; x<8; ++x)
+      put_pixel(src, x, y, (x+y)%2+1);
+
+  for (int factor : { 2, 4 }) {
+    std::unique_ptr<Image> dst(Image::create(IMAGE_RGB, 8/factor, 8/factor));
+    Render render;
+    render.renderSprite(dst.get(), doc->sprite(), frame_t(0),
+                        gfx::Clip(dst->bounds()), Zoom(1, factor));
+    for (int y=0; y<dst->height(); ++y)
+      for (int x=0; x<dst->width(); ++x)
+        EXPECT_EQ(rgba(120, 0, 120, 255), get_pixel(dst.get(), x, y));
+  }
+}
+
+TEST(Render, DownscaleTransparentPixels)
+{
+  std::unique_ptr<Image> src(Image::create(IMAGE_RGB, 2, 2));
+  clear_image(src.get(), rgba(0, 255, 0, 0));
+  put_pixel(src.get(), 1, 1, rgba(240, 0, 0, 255));
+  std::unique_ptr<Image> dst(Image::create(IMAGE_RGB, 1, 1));
+  Render render;
+  clear_image(dst.get(), 0);
+  render.renderImage(dst.get(), src.get(), nullptr, 0, 0, Zoom(1, 2), 255, BlendMode::NORMAL);
+  EXPECT_EQ(rgba(240, 0, 0, 64), get_pixel(dst.get(), 0, 0));
+
+  clear_image(dst.get(), rgba(0, 0, 240, 255));
+  render.renderImage(dst.get(), src.get(), nullptr, 0, 0, Zoom(1, 2), 255, BlendMode::NORMAL);
+  EXPECT_EQ(rgba(60, 0, 180, 255), get_pixel(dst.get(), 0, 0));
+}
+
+TEST(Render, DownscaleClippedOddSizedImage)
+{
+  std::unique_ptr<Image> src(Image::create(IMAGE_RGB, 9, 9));
+  for (int y=0; y<9; ++y)
+    for (int x=0; x<9; ++x)
+      put_pixel(src.get(), x, y, rgba(20*x, 20*y, 0, 255));
+  std::unique_ptr<Image> dst(Image::create(IMAGE_RGB, 1, 1));
+  clear_image(dst.get(), 0);
+  Render render;
+  render.renderImage(dst.get(), src.get(), nullptr, -1, -1, Zoom(1, 4), 255, BlendMode::NORMAL);
+  EXPECT_EQ(rgba(110, 110, 0, 255), get_pixel(dst.get(), 0, 0));
+}
+
+TEST(Render, DownscaleGrayscale)
+{
+  std::unique_ptr<Image> src(Image::create(IMAGE_GRAYSCALE, 2, 2));
+  clear_image(src.get(), graya(0, 255));
+  put_pixel(src.get(), 1, 1, graya(240, 255));
+  std::unique_ptr<Image> dst(Image::create(IMAGE_GRAYSCALE, 1, 1));
+  clear_image(dst.get(), 0);
+  Render render;
+  render.renderImage(dst.get(), src.get(), nullptr, 0, 0, Zoom(1, 2), 255, BlendMode::NORMAL);
+  EXPECT_EQ(graya(60, 255), get_pixel(dst.get(), 0, 0));
+}
+
+TEST(Render, DownscaleIndexedDestinationKeepsIndices)
+{
+  std::unique_ptr<Image> src(Image::create(IMAGE_INDEXED, 2, 2));
+  clear_image(src.get(), 2);
+  put_pixel(src.get(), 0, 0, 1);
+  std::unique_ptr<Image> dst(Image::create(IMAGE_INDEXED, 1, 1));
+  clear_image(dst.get(), 0);
+  Render render;
+  render.renderImage(dst.get(), src.get(), nullptr, 0, 0, Zoom(1, 2), 255, BlendMode::SRC);
+  EXPECT_EQ(1, get_pixel(dst.get(), 0, 0));
+}
+
 int main(int argc, char** argv)
 {
   ::testing::InitGoogleTest(&argc, argv);

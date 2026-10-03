@@ -16,6 +16,7 @@
 #include "doc/doc.h"
 #include "doc/handle_anidir.h"
 #include "doc/image_impl.h"
+#include "doc/primitives_fast.h"
 #include "gfx/clip.h"
 #include "gfx/region.h"
 
@@ -369,7 +370,46 @@ void composite_image_scale_down(
       ASSERT(src_it >= srcBits.begin() && src_it < src_end);
       ASSERT(dst_it >= dstBits.begin() && dst_it < dst_end);
 
-      *dst_it = blender(*dst_it, *src_it, opacity);
+      if constexpr (DstTraits::pixel_format == IMAGE_RGB ||
+                    DstTraits::pixel_format == IMAGE_GRAYSCALE) {
+        // Average the entire footprint to avoid aliasing dithered colors.
+        // Blend against the same backdrop for every sample, and accumulate
+        // premultiplied colors so transparent pixels cannot introduce a tint.
+        uint64_t r = 0, g = 0, b = 0, a = 0;
+        int samples = 0;
+        for (int dy=0; dy<unbox_h; ++dy) {
+          for (int dx=0; dx<unbox_w; ++dx) {
+            const int sx = srcBounds.x+x+dx;
+            const int sy = srcBounds.y+y+dy;
+            if (sx >= src->width() || sy >= src->height())
+              continue;
+            const color_t c = blender(*dst_it,
+              get_pixel_fast<SrcTraits>(src, sx, sy),
+              opacity);
+            ++samples;
+            if constexpr (DstTraits::pixel_format == IMAGE_RGB) {
+              const int alpha = rgba_geta(c);
+              r += rgba_getr(c) * alpha;
+              g += rgba_getg(c) * alpha;
+              b += rgba_getb(c) * alpha;
+              a += alpha;
+            }
+            else {
+              r += graya_getv(c) * graya_geta(c);
+              a += graya_geta(c);
+            }
+          }
+        }
+        if constexpr (DstTraits::pixel_format == IMAGE_RGB)
+          *dst_it = (a ? rgba((r+a/2)/a, (g+a/2)/a, (b+a/2)/a,
+                             (a+samples/2)/samples): 0);
+        else
+          *dst_it = (a ? graya((r+a/2)/a, (a+samples/2)/samples): 0);
+      }
+      else {
+        // Palette indices cannot be averaged as colors.
+        *dst_it = blender(*dst_it, *src_it, opacity);
+      }
 
       // Skip source pixels
       for (int delta=0; delta < unbox_w && src_it != src_end; ++delta)
