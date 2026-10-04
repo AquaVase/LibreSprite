@@ -2367,7 +2367,8 @@ std::shared_ptr<she::Font> SkinTheme::loadFont(const std::vector<std::string>& f
     bool isTrueType = base::get_file_extension(themeFont) != "png";
     if (isTrueType) {
       if (auto f = she::instance()->loadTrueTypeFont(themeFont.c_str(), size * guiscale())) {
-        f->setAntialias(true);
+        // Keep UI glyphs aligned to the pixel grid, just like the skin artwork.
+        f->setAntialias(false);
         // std::cout << "Loaded font: " << themeFont << std::endl;
         return std::shared_ptr<she::Font>(f);
       // } else {
@@ -2402,6 +2403,7 @@ std::shared_ptr<she::Font> SkinTheme::loadFont(const std::vector<std::string>& f
   while (!candidates.empty()) {
     auto& themeFont = candidates.back().second;
     if (auto f = she::instance()->loadTrueTypeFont(themeFont.c_str(), size * guiscale())) {
+      f->setAntialias(false);
       // std::cout << "Loaded fallback font: " << themeFont << std::endl;
       return std::shared_ptr<she::Font>(f);
     }

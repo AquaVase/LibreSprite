@@ -33,7 +33,7 @@ namespace ft {
   template<typename Cache>
   class FaceBase {
   public:
-    FaceBase(FT_Face face) : m_face(face) {
+    FaceBase(FT_Face face) : m_face(face), m_antialias(false) {
     }
 
     ~FaceBase() {
@@ -173,7 +173,8 @@ namespace ft {
         face, glyphIndex,
         FT_LOAD_RENDER |
         (antialias ? FT_LOAD_TARGET_NORMAL:
-                     FT_LOAD_TARGET_MONO));
+                     (FT_LOAD_TARGET_MONO | FT_LOAD_MONOCHROME |
+                      (FT_IS_SCALABLE(face) ? FT_LOAD_NO_BITMAP : 0))));
       if (err)
         return nullptr;
 
@@ -183,8 +184,10 @@ namespace ft {
         return nullptr;
 
       if (ft_glyph->format != FT_GLYPH_FORMAT_BITMAP) {
-        err = FT_Glyph_To_Bitmap(&ft_glyph, FT_RENDER_MODE_NORMAL, 0, 1);
-        if (!err) {
+        err = FT_Glyph_To_Bitmap(&ft_glyph,
+                                antialias ? FT_RENDER_MODE_NORMAL : FT_RENDER_MODE_MONO,
+                                0, 1);
+        if (err) {
           FT_Done_Glyph(ft_glyph);
           return nullptr;
         }

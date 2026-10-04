@@ -195,25 +195,14 @@ public:
             int dst_y = bmpBounds.y;
             int t;
             for (int v=0; v<bmpBounds.h; ++v, ++dst_y) {
-              int bit = 0;
+              int clippedPixels = bmpBounds.x - origBmpBounds.x;
+              int bit = antialias ? 0 : clippedPixels % 8;
               const uint8_t* p = glyph.bitmap->buffer
-                + (v+clippedRows)*glyph.bitmap->pitch;
+                + (v+clippedRows)*glyph.bitmap->pitch
+                + (antialias ? clippedPixels : clippedPixels / 8);
               int dst_x = bmpBounds.x;
               uint32_t* dst_address =
                 (uint32_t*)this->getData(dst_x, dst_y);
-
-              // Skip first clipped pixels
-              for (int u=0; u<bmpBounds.x-origBmpBounds.x; ++u) {
-                if (antialias) {
-                  ++p;
-                }
-                else {
-                  if (bit == 8) {
-                    bit = 0;
-                    ++p;
-                  }
-                }
-              }
 
               for (int u=0; u<bmpBounds.w; ++u, ++dst_x) {
                 ASSERT(clipBounds.contains(gfx::Point(dst_x, dst_y)));
