@@ -2366,12 +2366,8 @@ std::shared_ptr<she::Font> SkinTheme::loadFont(const std::vector<std::string>& f
   for (auto& themeFont : fonts) {
     bool isTrueType = base::get_file_extension(themeFont) != "png";
     if (isTrueType) {
-      // The bundled Chinese outline font loses strokes on the 8px Latin grid.
-      // Give it at least 12 logical pixels before integer UI/display scaling.
-      const bool chineseFont = base::get_file_title(themeFont) == "font-zh";
-      const auto fontSize = chineseFont ? std::max<std::size_t>(size, 12) : size;
-      if (auto f = she::instance()->loadTrueTypeFont(themeFont.c_str(), fontSize * guiscale())) {
-        f->setAntialias(!chineseFont);
+      if (auto f = she::instance()->loadTrueTypeFont(themeFont.c_str(), size * guiscale())) {
+        f->setAntialias(true);
         // std::cout << "Loaded font: " << themeFont << std::endl;
         return std::shared_ptr<she::Font>(f);
       // } else {
